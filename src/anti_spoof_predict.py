@@ -59,11 +59,17 @@ class Detection:
             if i != 0:
                 img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
             bbox = self.get_bounding_box(img)
+            print(bbox[-1])
             if bbox[-1] > old_conf:
                 temp = img
                 ret_bbox = bbox
-                if bbox[-1] >= self.exactly_face:
-                    break
+                old_conf = bbox[-1]
+                # if bbox[-1] >= self.exactly_face:
+                #     break
+        # if temp is not None:
+        #     print(ret_bbox)
+        #     cv2.imshow("ok", temp)
+        #     cv2.waitKey(0)
         return temp, ret_bbox
 
 
