@@ -109,4 +109,6 @@ if __name__ == "__main__":
         else:
             print(link_image, "is truth")
             results.append([link_image, 0])
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
     pd.DataFrame(results, columns=["path_to_image", "is_fake"]).to_csv(os.path.join(save_dir, "{}_result.csv".format(datetime.now().strftime("%d_%m_%Y_%H_%M_%S"))))
