@@ -23,10 +23,13 @@ def check_image(image, model_dir):
         return True
 
 
-def dl_face_spoof_detect(image, model_dir, model_test, image_cropper):
-    image, image_bbox = model_test.get_bbox(image)
+def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, face_model, img_heights, exact_thresh):
+    temp = image
+    image, image_bbox = faceboxes_detect(temp, face_model, img_heights, exact_thresh)
     if image is None:
-        return False, -1
+        image, image_bbox = model_test.get_bbox(temp)
+        if image is None:
+            return False, -1
     prediction = np.zeros((1, 3))
     test_speed = 0
     # sum the prediction from single model's result
@@ -79,12 +82,21 @@ def draw_prediction(image, image_bbox, prediction):
 from  moire import read_cfg, prepare_environment, fake_detection
 import pandas as pd
 from datetime import datetime
+from face_detect_only import faceboxes_detect
+import json
+import sys
+sys.path.insert(0, 'FaceBoxes.PyTorch/')
+import mytest
 
 if __name__ == "__main__":
     # prepare environments
     ctx, queue, mf, prg = prepare_environment()
     # prepare parameters
-    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir = read_cfg()
+    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+    img_heights = list(json.loads(img_heights))
+    ## load model
+    face_model = mytest.face_boxes_model()
+    face_model.load_face_model()
 
     model_test = AntiSpoofPredict(device_id)
     image_cropper = CropImage()
@@ -99,16 +111,16 @@ if __name__ == "__main__":
             print("can't read image")
             results.append([link_image, -1])
             continue
-        check_result, conf = dl_face_spoof_detect(img, model_dir, model_test, image_cropper)
+        check_result, conf = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, face_model, img_heights, exact_thresh)
         if check_result:
             print(link_image, "is fake with score=", conf)
-            results.append([link_image, 1])
+            results.append([link_image, 1, conf])
         elif fake_detection(img, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
             print(link_image, "is fake")
-            results.append([link_image, 2])
+            results.append([link_image, 2, conf])
         else:
             print(link_image, "is truth")
-            results.append([link_image, 0])
+            results.append([link_image, 0, conf])
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
-    pd.DataFrame(results, columns=["path_to_image", "is_fake"]).to_csv(os.path.join(save_dir, "{}_result.csv".format(datetime.now().strftime("%d_%m_%Y_%H_%M_%S"))))
+    pd.DataFrame(results, columns=["path_to_image", "is_fake", "conf"]).to_csv(os.path.join(save_dir, "{}_result.csv".format(datetime.now().strftime("%d_%m_%Y_%H_%M_%S"))))

@@ -178,7 +178,9 @@ def read_cfg(file_name="config.cfg"):
     device_id = int(config.get("dl_model", "device_id"))
     model_dir = config.get("dl_model", "model_dir")
     save_dir = config.get("dl_model", "save_dir")
-    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir
+    img_heights = config.get("facebox", "img_heights")
+    exact_thresh = float(config.get("facebox", "exact_thresh"))
+    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh
 
 if __name__ == "__main__":
     ## prepare environment
