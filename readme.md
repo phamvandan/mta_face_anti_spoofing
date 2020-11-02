@@ -5,8 +5,13 @@ Chạy chương trình
 ```
         
 config_file 
-change this line to the testing image folder, results are stored in ./save_image/..csv
+change this line to the testing image folder
 ```
     [moire]
     in=./images 
+```
+results are stored in ./save_image/..csv
+```
+    0 live image
+    1, 2 fake detected
 ```
