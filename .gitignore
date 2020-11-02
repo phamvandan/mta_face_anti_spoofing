@@ -1,5 +1,5 @@
 .idea
-.pyc
-.csv
-.jpg
-.png
+*.pyc
+*.csv
+*.jpg
+*.png
