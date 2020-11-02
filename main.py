@@ -24,7 +24,9 @@ def check_image(image, model_dir):
 
 
 def dl_face_spoof_detect(image, model_dir, model_test, image_cropper):
-    image_bbox = model_test.get_bbox(image)
+    image, image_bbox = model_test.get_bbox(image)
+    if image is None:
+        return False, -1
     prediction = np.zeros((1, 3))
     test_speed = 0
     # sum the prediction from single model's result
@@ -99,11 +101,11 @@ if __name__ == "__main__":
             continue
         check_result, conf = dl_face_spoof_detect(img, model_dir, model_test, image_cropper)
         if check_result:
-            print(link_image,"is fake with score=", conf)
+            print(link_image, "is fake with score=", conf)
             results.append([link_image, 1])
         elif fake_detection(img, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
             print(link_image, "is fake")
-            results.append([link_image, 1])
+            results.append([link_image, 2])
         else:
             print(link_image, "is truth")
             results.append([link_image, 0])

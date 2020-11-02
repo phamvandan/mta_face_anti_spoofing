@@ -31,8 +31,9 @@ class Detection:
         deploy = "./resources/detection_model/deploy.prototxt"
         self.detector = cv2.dnn.readNetFromCaffe(deploy, caffemodel)
         self.detector_confidence = 0.6
+        self.exactly_face = 0.95
 
-    def get_bbox(self, img):
+    def get_bounding_box(self, img):
         height, width = img.shape[0], img.shape[1]
         aspect_ratio = width / height
         if img.shape[1] * img.shape[0] >= 192 * 192:
@@ -43,11 +44,27 @@ class Detection:
         blob = cv2.dnn.blobFromImage(img, 1, mean=(104, 117, 123))
         self.detector.setInput(blob, 'data')
         out = self.detector.forward('detection_out').squeeze()
+        # print("out", out[:, 2])
         max_conf_index = np.argmax(out[:, 2])
-        left, top, right, bottom = out[max_conf_index, 3]*width, out[max_conf_index, 4]*height, \
-                                   out[max_conf_index, 5]*width, out[max_conf_index, 6]*height
-        bbox = [int(left), int(top), int(right-left+1), int(bottom-top+1)]
+        left, top, right, bottom = out[max_conf_index, 3] * width, out[max_conf_index, 4] * height, \
+                                   out[max_conf_index, 5] * width, out[max_conf_index, 6] * height
+        bbox = [int(left), int(top), int(right - left + 1), int(bottom - top + 1), np.max(out[:, 2])]
         return bbox
+
+    def get_bbox(self, img):
+        temp = None
+        old_conf = 0.5
+        ret_bbox = None
+        for i in range(4):
+            if i != 0:
+                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            bbox = self.get_bounding_box(img)
+            if bbox[-1] > old_conf:
+                temp = img
+                ret_bbox = bbox
+                if bbox[-1] >= self.exactly_face:
+                    break
+        return temp, ret_bbox
 
 
 class AntiSpoofPredict(Detection):
