@@ -1,3 +1,8 @@
+Build chương trình 
+```
+    cd mta_face_anti_spoofing/FaceBoxes.PyTorch
+    ./make.sh
+```
 Chạy chương trình 
 ``` 
         pip install -r requirements.txt
