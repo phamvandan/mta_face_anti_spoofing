@@ -33,11 +33,11 @@ def check_image(image, model_dir):
 
 def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, face_model, img_heights, exact_thresh):
     temp = image
-    image, image_bbox, origin_bbox = faceboxes_detect(temp, face_model, img_heights, exact_thresh)
+    image, image_bbox = faceboxes_detect(temp, face_model, img_heights, exact_thresh)
     if image is None:
         # image, image_bbox = model_test.get_bbox(temp)
         # if image is None:
-        return False, -1, origin_bbox
+        return False, -1, image, image_bbox
     prediction = np.zeros((1, 3))
     test_speed = 0
     # sum the prediction from single model's result
@@ -62,8 +62,8 @@ def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, face_model
     print(prediction)
     value = prediction[0][label] / 2
     if label == 1:
-        return False, value, origin_bbox
-    return True, value, origin_bbox
+        return False, value, image, image_bbox
+    return True, value, image, image_bbox
 
 
 def draw_prediction(image, image_bbox, prediction):
@@ -114,9 +114,14 @@ if __name__ == "__main__":
             continue
 
         # bbox can be None if detected fail
-        check_result, conf, bbox = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, face_model,
+        check_result, conf, image, bbox = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, face_model,
                                                         img_heights,
                                                         exact_thresh)
+        if bbox is not None:
+            x,y,a,b,_ = bbox
+            ## face only from original image
+            img = image[y:b, x:a]
+
         if check_result:
             print(link_image, "is fake with score=", conf)
             results.append([link_image, 1, conf])
