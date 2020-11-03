@@ -17,6 +17,7 @@ def rotate_box(bbox, w, h, angle, ori_w, ori_h):
         boxes = np.asarray([(h - y2)*ori_w/h, x1*ori_h/w, (h - y1)*ori_w/h, x2*ori_h/w])
         return boxes
 
+# detect
 def faceboxes_detect(image, face_model, img_heights, exact_thresh):
     ori_h, ori_w = image.shape[:2]
     origin_box = None
