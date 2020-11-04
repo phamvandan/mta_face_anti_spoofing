@@ -3,3 +3,4 @@
 *.csv
 *.jpg
 *.png
+/Pytorch_Retinaface/weights/Resnet50_Final.pth

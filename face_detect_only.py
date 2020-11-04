@@ -3,8 +3,8 @@ import imutils
 import numpy as np
 import sys
 
-sys.path.insert(0, 'FaceBoxes.PyTorch/')
-import mytest
+# sys.path.insert(0, 'FaceBoxes.PyTorch/')
+# import mytest
 # def rotate_box(bbox, w, h, angle, ori_w, ori_h):
 #     x1, y1, x2, y2, _ = bbox
 #     if angle == 0:
@@ -34,7 +34,7 @@ def faceboxes_detect(image, face_model, img_heights, exact_thresh):
             if i != 0:
                 img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
             temp = np.float32(img)
-            bboxs = face_model.detect_faces(temp)
+            bboxs = face_model.retina_detect(temp)
             if bboxs is None or len(bboxs)==0:
                 continue
             bbox = bboxs[np.argmax(bboxs[:, 4])]
@@ -56,10 +56,10 @@ def faceboxes_detect(image, face_model, img_heights, exact_thresh):
         ori_h, ori_w = image_rs.shape[:2]
         x, y, a, b, conf = box
         box = [int(x*ori_w/resize_w), int(y*ori_h/resize_h), int(a*ori_w/resize_w), int(b*ori_h/resize_h), conf]
-        # x, y, a, b, conf = box
-        # cv2.rectangle(image_rs, (x,y), (a, b), (0,0,255), 2)
-        # cv2.imshow("image_rs", image_rs)
-        # cv2.waitKey(0)
+        x, y, a, b, conf = box
+        cv2.rectangle(image_rs, (x,y), (a, b), (0,0,255), 2)
+        cv2.imshow("image_rs", image_rs)
+        cv2.waitKey(0)
     return image_rs, box
 
 if __name__ == '__main__':

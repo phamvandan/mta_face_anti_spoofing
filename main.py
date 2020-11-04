@@ -10,16 +10,22 @@ from src.utility import parse_model_name
 from moire import read_cfg, prepare_environment, fake_detection
 import pandas as pd
 from datetime import datetime
-from face_detect_only import faceboxes_detect
 import json
+import imutils
 import sys
 
-sys.path.insert(0, 'FaceBoxes.PyTorch/')
-import mytest
+sys.path.insert(0, 'Pytorch_Retinaface/')
+
+# sys.path.insert(0, 'FaceBoxes.PyTorch/')
+# import mytest
+
+from Pytorch_Retinaface.detect import load_net, do_detect
 
 warnings.filterwarnings('ignore')
 
 SAMPLE_IMAGE_PATH = ""
+
+net, device, cfg = load_net()
 
 
 def check_image(image, model_dir):
@@ -31,9 +37,101 @@ def check_image(image, model_dir):
         return True
 
 
-def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, face_model, img_heights, exact_thresh):
+def rotate_box(bbox, angle, h, w):
+    x1, y1, x2, y2, conf = bbox
+    if angle == 0:
+        return bbox
+    elif angle == 90:
+        return w - y2, x1, w - y1, x2, conf
+    elif angle == 180:
+        return w - x2, h - y2, w - x1, h - y1, conf
+    else:
+        return y1, h - x2, y2, h - x1, conf
+
+
+def check_box_angle(landmarks):
+    y1 = landmarks[1]
+    y2 = landmarks[3]
+    y = landmarks[5]
+    if y1 < y and y2 < y:
+        return 0
+    elif y1 < y < y2:
+        return 270
+    elif y1 > y and y2 > y:
+        return 180
+    elif y2 < y < y1:
+        return 90
+    print("UNKNOWN")
+    return 0
+
+
+def faceboxes_detect(image, img_heights, exact_thresh):
+    box = None
+    old_conf = 0.5
+    image_rs = None
+    angle = None
+    resize_w = None
+    resize_h = None
+    landmark = None
+    for img_height in img_heights:
+        img = imutils.resize(image, height=img_height)
+        for i in range(4):
+            if i != 0:
+                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            bboxs, landmarks = do_detect(img, net, device, cfg)
+            if bboxs is None or len(bboxs) == 0:
+                continue
+            idx = np.argmax(bboxs[:, 4])
+            bbox = bboxs[idx]
+            if bbox[-1] > old_conf:
+                old_conf = bbox[-1]
+                box = bbox
+                angle = 90 * i
+                resize_h, resize_w = img.shape[:2]
+                landmark = landmarks[idx]
+
+            if old_conf > exact_thresh:
+                break
+
+    if box is not None:
+        if angle == 0:
+            image_rs = image
+        if angle == 90:
+            image_rs = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        elif angle == 180:
+            image_rs = cv2.rotate(image, cv2.ROTATE_180)
+        elif angle == 270:
+            image_rs = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        ori_h, ori_w = image_rs.shape[:2]
+        x, y, a, b, conf = box
+        box = [int(x * ori_w / resize_w), int(y * ori_h / resize_h), int(a * ori_w / resize_w),
+               int(b * ori_h / resize_h), conf]
+        #x, y, a, b, conf = box
+        #cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
+        #cv2.imshow("image_rs", image_rs)
+        #cv2.waitKey(0)
+        angle = check_box_angle(landmark)
+        print("angle", angle)
+        if angle == 0:
+            image_rs = image_rs
+        if angle == 90:
+            image_rs = cv2.rotate(image_rs, cv2.ROTATE_90_CLOCKWISE)
+        elif angle == 180:
+            image_rs = cv2.rotate(image_rs, cv2.ROTATE_180)
+        elif angle == 270:
+            image_rs = cv2.rotate(image_rs, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        ori_h, ori_w = image_rs.shape[:2]
+        box = rotate_box(box, angle, ori_h, ori_w)
+        #x, y, a, b, conf = box
+        #cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
+        #cv2.imshow("image_rs", image_rs)
+        #cv2.waitKey(0)
+    return image_rs, box
+
+
+def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, img_heights, exact_thresh):
     temp = image
-    image, image_bbox = faceboxes_detect(temp, face_model, img_heights, exact_thresh)
+    image, image_bbox = faceboxes_detect(temp, img_heights, exact_thresh)
     if image is None:
         # image, image_bbox = model_test.get_bbox(temp)
         # if image is None:
@@ -96,8 +194,8 @@ if __name__ == "__main__":
     folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
     img_heights = list(json.loads(img_heights))
     # load model
-    face_model = mytest.face_boxes_model()
-    face_model.load_face_model()
+    # face_model = mytest.face_boxes_model()
+    # face_model.load_face_model()
 
     model_test = AntiSpoofPredict(device_id)
     image_cropper = CropImage()
@@ -114,11 +212,10 @@ if __name__ == "__main__":
             continue
 
         # bbox can be None if detected fail
-        check_result, conf, image, bbox = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, face_model,
-                                                        img_heights,
-                                                        exact_thresh)
+        check_result, conf, image, bbox = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, img_heights,
+                                                               exact_thresh)
         if bbox is not None:
-            x,y,a,b,_ = bbox
+            x, y, a, b, _ = bbox
             ## face only from original image
             img = image[y:b, x:a]
 
