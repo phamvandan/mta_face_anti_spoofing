@@ -105,8 +105,8 @@ class face_boxes_model:
 
         # do NMS
         dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-        keep = py_cpu_nms(dets, self.args.nms_threshold)
-        # keep = nms(dets, self.args.nms_threshold, force_cpu=self.args.cpu)
+        # keep = py_cpu_nms(dets, self.args.nms_threshold)
+        keep = nms(dets, self.args.nms_threshold, force_cpu=self.args.cpu)
         dets = dets[keep, :]
 
         # keep top-K faster NMS
