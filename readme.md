@@ -1,6 +1,11 @@
 Chạy chương trình 
 ``` 
+        pip install torch and torchvision
         pip install -r requirements.txt
+        cd Pytorch_Retinaface
+        mkdir weights
+        ## download weights from this link and move to Pytorch_Retinaface/weights
+        https://drive.google.com/file/d/14KX6VqF69MdSPk3Tr9PlDYbq7ArpdNUW/view?usp=sharing
         python main.py
 ```
         
