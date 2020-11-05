@@ -65,6 +65,18 @@ def check_box_angle(landmarks):
     return 0
 
 
+def rotate_image(image, angle):
+    image_rs = None
+    if angle == 0:
+        image_rs = image
+    if angle == 90:
+        image_rs = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    elif angle == 180:
+        image_rs = cv2.rotate(image, cv2.ROTATE_180)
+    elif angle == 270:
+        image_rs = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return image_rs
+
 def faceboxes_detect(image, img_heights, exact_thresh):
     box = None
     old_conf = 0.5
@@ -94,38 +106,24 @@ def faceboxes_detect(image, img_heights, exact_thresh):
                 break
 
     if box is not None:
-        if angle == 0:
-            image_rs = image
-        if angle == 90:
-            image_rs = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-        elif angle == 180:
-            image_rs = cv2.rotate(image, cv2.ROTATE_180)
-        elif angle == 270:
-            image_rs = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        image_rs = rotate_image(image, angle)
         ori_h, ori_w = image_rs.shape[:2]
         x, y, a, b, conf = box
         box = [int(x * ori_w / resize_w), int(y * ori_h / resize_h), int(a * ori_w / resize_w),
                int(b * ori_h / resize_h), conf]
-        #x, y, a, b, conf = box
-        #cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
-        #cv2.imshow("image_rs", image_rs)
-        #cv2.waitKey(0)
+        # x, y, a, b, conf = box
+        # cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
+        # cv2.imshow("image_rs", image_rs)
+        # cv2.waitKey(0)
         angle = check_box_angle(landmark)
         print("angle", angle)
-        if angle == 0:
-            image_rs = image_rs
-        if angle == 90:
-            image_rs = cv2.rotate(image_rs, cv2.ROTATE_90_CLOCKWISE)
-        elif angle == 180:
-            image_rs = cv2.rotate(image_rs, cv2.ROTATE_180)
-        elif angle == 270:
-            image_rs = cv2.rotate(image_rs, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        image_rs = rotate_image(image_rs, angle)
         ori_h, ori_w = image_rs.shape[:2]
         box = rotate_box(box, angle, ori_h, ori_w)
-        #x, y, a, b, conf = box
-        #cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
-        #cv2.imshow("image_rs", image_rs)
-        #cv2.waitKey(0)
+        # x, y, a, b, conf = box
+        # cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
+        # cv2.imshow("image_rs", image_rs)
+        # cv2.waitKey(0)
     return image_rs, box
 
 
