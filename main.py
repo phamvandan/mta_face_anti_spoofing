@@ -119,8 +119,12 @@ def faceboxes_detect(image, img_heights, exact_thresh):
         print("angle", angle)
         image_rs = rotate_image(image_rs, angle)
         ori_h, ori_w = image_rs.shape[:2]
-        box = rotate_box(box, angle, ori_h, ori_w)
-        # x, y, a, b, conf = box
+        box = list(rotate_box(box, angle, ori_h, ori_w))
+        x, y, a, b, _ = box
+
+        box[2] = a - x
+        box[3] = b - y
+
         # cv2.rectangle(image_rs, (x, y), (a, b), (0, 0, 255), 2)
         # cv2.imshow("image_rs", image_rs)
         # cv2.waitKey(0)
@@ -130,6 +134,7 @@ def faceboxes_detect(image, img_heights, exact_thresh):
 def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, img_heights, exact_thresh):
     temp = image
     image, image_bbox = faceboxes_detect(temp, img_heights, exact_thresh)
+    # image, image_bbox = model_test.get_bbox(temp)
     if image is None:
         # image, image_bbox = model_test.get_bbox(temp)
         # if image is None:
@@ -155,8 +160,8 @@ def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, img_height
         test_speed += time.time() - start
     print("Prediction cost {:.2f} s".format(test_speed))
     label = np.argmax(prediction)
-    print(prediction)
     value = prediction[0][label] / 2
+    print("confidence=", value)
     if label == 1:
         return False, value, image, image_bbox
     return True, value, image, image_bbox

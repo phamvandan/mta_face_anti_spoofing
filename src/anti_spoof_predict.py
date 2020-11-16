@@ -66,10 +66,12 @@ class Detection:
                 old_conf = bbox[-1]
                 # if bbox[-1] >= self.exactly_face:
                 #     break
-        # if temp is not None:
-        #     print(ret_bbox)
-        #     cv2.imshow("ok", temp)
-        #     cv2.waitKey(0)
+        if temp is not None:
+            print(ret_bbox)
+            (x,y,a,b,_) = ret_bbox
+            cv2.rectangle(temp, (x,y), (x+a, y+b), (0,255,0), 2)
+            cv2.imshow("ok", temp)
+            cv2.waitKey(0)
         return temp, ret_bbox
 
 
