@@ -1,98 +1,230 @@
-# -*- coding: utf-8 -*-
-import os
 import cv2
 import numpy as np
-import argparse
-import warnings
-import time
-
-from src.anti_spoof_predict import AntiSpoofPredict
-from src.generate_patches import CropImage
-from src.utility import parse_model_name
-warnings.filterwarnings('ignore')
+from skimage.filters import difference_of_gaussians, window
+from scipy.fftpack import fftn, fftshift
+import random, os
+import pyopencl as cl
 
 
-SAMPLE_IMAGE_PATH = ""
+def moire_image(I, debug=1):
+    rows, cols = I.shape
+    m = cv2.getOptimalDFTSize(rows)
+    n = cv2.getOptimalDFTSize(cols)
+    padded = cv2.copyMakeBorder(I, 0, m - rows, 0, n - cols,
+                                cv2.BORDER_CONSTANT, value=[0, 0, 0])
 
-def check_image(image, model_dir):
-    height, width, channel = image.shape
-    if width/height != 3/4:
-        print("Image is not appropriate!!!\nHeight/Width should be 4/3.")
-        return False
-    else:
-        return True
+    planes = [np.float32(padded), np.zeros(padded.shape, np.float32)]
+    complexI = cv2.merge(planes)  # Add to the expanded another plane with zeros
+
+    cv2.dft(complexI,
+            complexI)  # this way the result may fit in the source matrix
+
+    cv2.split(complexI, planes)  # planes[0] = Re(DFT(I), planes[1] = Im(DFT(I))
+    cv2.magnitude(planes[0], planes[1], planes[0])  # planes[0] = magnitude
+    magI = planes[0]
+
+    matOfOnes = np.ones(magI.shape, dtype=magI.dtype)
+    cv2.add(matOfOnes, magI, magI)  # switch to logarithmic scale
+    cv2.log(magI, magI)
+
+    magI_rows, magI_cols = magI.shape
+    # crop the spectrum, if it has an odd number of rows or columns
+    magI = magI[0:(magI_rows & -2), 0:(magI_cols & -2)]
+    cx = int(magI_rows / 2)
+    cy = int(magI_cols / 2)
+    q0 = magI[0:cx, 0:cy]  # Top-Left - Create a ROI per quadrant
+    q1 = magI[cx:cx + cx, 0:cy]  # Top-Right
+    q2 = magI[0:cx, cy:cy + cy]  # Bottom-Left
+    q3 = magI[cx:cx + cx, cy:cy + cy]  # Bottom-Right
+    tmp = np.copy(q0)  # swap quadrants (Top-Left with Bottom-Right)
+    magI[0:cx, 0:cy] = q3
+    magI[cx:cx + cx, cy:cy + cy] = tmp
+    tmp = np.copy(q1)  # swap quadrant (Top-Right with Bottom-Left)
+    magI[cx:cx + cx, 0:cy] = q2
+    magI[0:cx, cy:cy + cy] = tmp
+    # print(magI)
+    magII = cv2.normalize(magI, None, 0, 1,
+                          cv2.NORM_MINMAX)  # Transform the matrix with float values into a
+
+    if debug == 1:
+        cv2.imshow("fourier", magII)
+
+    return magI
 
 
-def test(image_name, model_dir, device_id):
-    model_test = AntiSpoofPredict(device_id)
-    image_cropper = CropImage()
-    image = cv2.imread(SAMPLE_IMAGE_PATH + image_name)
-    image_bbox = model_test.get_bbox(image)
-    prediction = np.zeros((1, 3))
-    test_speed = 0
-    # sum the prediction from single model's result
-    for model_name in os.listdir(model_dir):
-        h_input, w_input, model_type, scale = parse_model_name(model_name)
-        param = {
-            "org_img": image,
-            "bbox": image_bbox,
-            "scale": scale,
-            "out_w": w_input,
-            "out_h": h_input,
-            "crop": True,
-        }
-        if scale is None:
-            param["crop"] = False
-        img = image_cropper.crop(**param)
-        start = time.time()
-        prediction += model_test.predict(img, os.path.join(model_dir, model_name))
-        test_speed += time.time()-start
+def get_filted(img, k, sigma):
+    filted = difference_of_gaussians(img, sigma, k * sigma)
+    filter_img = filted * window('hann', img.shape)
+    result = fftshift(np.abs(fftn(filter_img)))
+    result = cv2.normalize(result, result, 0, 1, cv2.NORM_MINMAX)
+    result = np.uint8(result * 255.)
+    return result
 
-    # draw result of prediction
-    label = np.argmax(prediction)
-    value = prediction[0][label]/2
-    if label == 1:
-        print("Image '{}' is Real Face. Score: {:.2f}.".format(image_name, value))
-        result_text = "RealFace Score: {:.2f}".format(value)
-        color = (255, 0, 0)
-    else:
-        print("Image '{}' is Fake Face. Score: {:.2f}.".format(image_name, value))
-        result_text = "FakeFace Score: {:.2f}".format(value)
-        color = (0, 0, 255)
-    print("Prediction cost {:.2f} s".format(test_speed))
-    cv2.rectangle(
-        image,
-        (image_bbox[0], image_bbox[1]),
-        (image_bbox[0] + image_bbox[2], image_bbox[1] + image_bbox[3]),
-        color, 2)
-    cv2.putText(
-        image,
-        result_text,
-        (image_bbox[0], image_bbox[1] - 5),
-        cv2.FONT_HERSHEY_COMPLEX, 0.5*image.shape[0]/1024, color)
 
-    format_ = os.path.splitext(image_name)[-1]
-    result_image_name = image_name.replace(format_, "_result" + format_)
-    cv2.imwrite(SAMPLE_IMAGE_PATH + result_image_name, image)
+def check(p, l):
+    t_0 = 0.
+    t_1 = 0.
+    p_0 = 0.
+    p_1 = 0.
+    sl = []
+    # print(p, l)
+    p = np.array(p, dtype=np.float32)
+    for i in range(0, 255, 1):
+        sl.append(p[i] * 1.)
+        if p[i] == 0:
+            continue
+        p[i] = p[i] * 1.
+        p[i] = p[i] / l
+        p_0 = p_0 + p[i]
+        p_1 = p_1 + i * p[i]
+    avg = -100000
+    # print("avg", p)
+    remember = 0
+    for i in range(0, 256, 1):
+        p_0 -= p[i]
+        p_1 -= p[i] * i
+        t_0 += p[i]
+        t_1 += p[i] * i
+        if p_0 == 0:
+            continue
+        m1 = p_1 / p_0
+        if t_0 == 0:
+            continue
+        m0 = t_1 / t_0
+        eA = t_1 + p_1
+        eB = m0 * t_0 + m1 * p_0
+        eAB = m0 * t_1 + m1 * p_1
+        eBB = m0 * m0 * t_0 + m1 * m1 * p_0
+        p_AB1 = eAB - eA * eB
+        p_AB2 = eBB - eB * eB
+        if p_AB2 == 0:
+            remember = i
+            break
+        p_AB = p_AB1 * p_AB1 / p_AB2
+        if p_AB > avg:
+            remember = i
+            avg = p_AB
+    res = 0.0
+    # print(remember, sl)
+    for i in range(remember, 255, 1):
+        res += sl[i]
+    # print(res)
+    return res / l
+
+
+def prepare_environment():
+    platform = cl.get_platforms()
+    my_gpu_devices = platform[0].get_devices(device_type=cl.device_type.GPU)
+    ctx = cl.Context(devices=my_gpu_devices)
+    queue = cl.CommandQueue(ctx)
+    mf = cl.mem_flags
+    prg = cl.Program(ctx, """
+            __kernel void check(__global const int *img, __global  int * thres, int l)
+            {
+                int gid = get_global_id(0);
+                if (gid == 0)
+                {
+                    for (int i = 0; i < l; i++)
+                        thres[img[i]] += 1;
+                }
+            }
+            """).build()
+    return ctx, queue, mf, prg
+
+
+def is_moire(img, ctx, queue, mf, prg):
+    thres = np.zeros(256, dtype=np.int32)
+    thres_g = cl.Buffer(ctx, mf.WRITE_ONLY, thres.nbytes)
+    np_ar = np.array(img, dtype=np.int32)
+    r, c = np_ar.shape
+    shape_ = r * c
+    np_ar = np.reshape(np_ar, r * c)
+    # print("shape", shape_)
+    # while shape_%size != 0:
+    #     np_ar = np.append(np_ar, [-1])
+    #     shape_+=1
+    np_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                     hostbuf=np_ar)
+
+    we = prg.check(queue, (1,), None, np_g, thres_g, np.int32(shape_))
+    res_np = np.empty_like(thres)
+    cl.enqueue_copy(queue, res_np, thres_g, wait_for=[we])
+    thres = check(res_np, shape_)
+
+    return thres
+
+def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
+    try:
+        img_ = cv2.cvtColor(img_, cv2.COLOR_BGR2GRAY)
+    except:
+        img_ = img_
+    sigma = sigma_
+    min_thres = 1
+    dd_img = False
+    rows, cols = img_.shape
+    slide_r = rows // 9
+    slide_c = cols // 9
+    img = get_filted(img_, k, sigma)
+    while sigma < sigmaMax:
+        for size_l in range(4, 6, 1):
+            if dd_img:
+                break
+            for size_r in range(4, 6, 1):
+                if dd_img:
+                    break
+                for i in range(0, 9 - size_l, 1):
+                    if dd_img:
+                        break
+                    for j in range(0, 9 - size_r, 1):
+                        r = slide_r * i
+                        rr = slide_r * (i + size_l)
+                        c = slide_c * j
+                        cc = slide_c * (j + size_r)
+                        thres = is_moire(img[r:rr, c:cc], ctx, queue, mf, prg)
+                        if min_thres > thres:
+                            min_thres = thres
+                        if (thres < thresh):
+                            return True
+
+        sigma += delta
+    return False
+
+import configparser
+
+
+def read_cfg(file_name="config.cfg"):
+    config = configparser.ConfigParser()
+    config.read("config.cfg")
+    folder_int = config.get("moire", "in")
+    folder_out = config.get("moire", "out")
+    sigma_ = float(config.get("moire", "sigma_"))
+    sigmaMax = float(config.get("moire", "sigma_max"))
+    k = float(config.get("moire", "k"))
+    thresh = float(config.get("moire", "thresh"))
+    delta = float(config.get("moire", "delta"))
+    device_id = int(config.get("dl_model", "device_id"))
+    model_dir = config.get("dl_model", "model_dir")
+    save_dir = config.get("dl_model", "save_dir")
+    img_heights = config.get("facebox", "img_heights")
+    exact_thresh = float(config.get("facebox", "exact_thresh"))
+    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh
 
 
 if __name__ == "__main__":
-    desc = "test"
-    parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument(
-        "--device_id",
-        type=int,
-        default=0,
-        help="which gpu id, [0/1/2/3]")
-    parser.add_argument(
-        "--model_dir",
-        type=str,
-        default="./resources/anti_spoof_models",
-        help="model_lib used to test")
-    parser.add_argument(
-        "--image_name",
-        type=str,
-        default="image_F1.jpg",
-        help="image used to test")
-    args = parser.parse_args()
-    test(args.image_name, args.model_dir, args.device_id)
+    ## prepare environment
+    ctx, queue, mf, prg = prepare_environment()
+    ## read config parameters
+    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+
+    file_images = os.listdir(folder_int)
+    for f in file_images:
+        link_image = os.path.join(folder_int, f)
+        img = cv2.imread(link_image, 0)
+        if img is None:
+            print("can't read image")
+        else:
+            ## fake_detection
+            if fake_detection(img, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
+                print(f, "is fake")
+            else:
+                print(f, "is not fake")
