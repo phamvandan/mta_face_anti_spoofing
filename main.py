@@ -133,8 +133,8 @@ def faceboxes_detect(image, img_heights, exact_thresh):
 
 def dl_face_spoof_detect(image, model_dir, model_test, image_cropper, img_heights, exact_thresh):
     temp = image
-    image, image_bbox = faceboxes_detect(temp, img_heights, exact_thresh)
-    # image, image_bbox = model_test.get_bbox(temp)
+    # image, image_bbox = faceboxes_detect(temp, img_heights, exact_thresh)
+    image, image_bbox = model_test.get_bbox(temp)
     if image is None:
         # image, image_bbox = model_test.get_bbox(temp)
         # if image is None:
@@ -220,7 +220,9 @@ if __name__ == "__main__":
         if bbox is not None:
             x, y, a, b, _ = bbox
             ## face only from original image
-            img = image[y:b, x:a]
+            img = image[y:(y+b), x:(x+a)]
+            # cv2.imshow("ok", img)
+            # cv2.waitKey(0)
 
         if check_result:
             print(link_image, "is fake with score=", conf)
