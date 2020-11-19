@@ -3,7 +3,7 @@ import numpy as np
 from skimage.filters import difference_of_gaussians, window
 from scipy.fftpack import fftn, fftshift
 import random, os
-import pyopencl as cl
+
 
 
 def moire_image(I, debug=1):
@@ -112,48 +112,17 @@ def check(p, l):
     return res / l
 
 
-def prepare_environment():
-    platform = cl.get_platforms()
-    my_gpu_devices = platform[0].get_devices(device_type=cl.device_type.GPU)
-    ctx = cl.Context(devices=my_gpu_devices)
-    queue = cl.CommandQueue(ctx)
-    mf = cl.mem_flags
-    prg = cl.Program(ctx, """
-            __kernel void check(__global const int *img, __global  int * thres, int l)
-            {
-                int gid = get_global_id(0);
-                if (gid == 0)
-                {
-                    for (int i = 0; i < l; i++)
-                        thres[img[i]] += 1;
-                }
-            }
-            """).build()
-    return ctx, queue, mf, prg
-
-
-def is_moire(img, ctx, queue, mf, prg):
+def is_moire(img):
     thres = np.zeros(256, dtype=np.int32)
-    thres_g = cl.Buffer(ctx, mf.WRITE_ONLY, thres.nbytes)
-    np_ar = np.array(img, dtype=np.int32)
-    r, c = np_ar.shape
-    shape_ = r * c
-    np_ar = np.reshape(np_ar, r * c)
-    # print("shape", shape_)
-    # while shape_%size != 0:
-    #     np_ar = np.append(np_ar, [-1])
-    #     shape_+=1
-    np_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                     hostbuf=np_ar)
-
-    we = prg.check(queue, (1,), None, np_g, thres_g, np.int32(shape_))
-    res_np = np.empty_like(thres)
-    cl.enqueue_copy(queue, res_np, thres_g, wait_for=[we])
-    thres = check(res_np, shape_)
+    for i in img:
+        thres[i]+=1
+    r, c = img.shape
+    shape_ = r*c
+    thres = check(thres, shape_)
 
     return thres
 
-def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
+def fake_detection(img_, sigma_, sigmaMax, k, thresh, a1, a2, a3, a4, delta):
     try:
         img_ = cv2.cvtColor(img_, cv2.COLOR_BGR2GRAY)
     except:
@@ -180,7 +149,7 @@ def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta
                         rr = slide_r * (i + size_l)
                         c = slide_c * j
                         cc = slide_c * (j + size_r)
-                        thres = is_moire(img[r:rr, c:cc], ctx, queue, mf, prg)
+                        thres = is_moire(img[r:rr, c:cc])
                         if min_thres > thres:
                             min_thres = thres
                         if (thres < thresh):
@@ -212,7 +181,7 @@ def read_cfg(file_name="config.cfg"):
 
 if __name__ == "__main__":
     ## prepare environment
-    ctx, queue, mf, prg = prepare_environment()
+
     ## read config parameters
     folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
 
@@ -224,7 +193,7 @@ if __name__ == "__main__":
             print("can't read image")
         else:
             ## fake_detection
-            if fake_detection(img, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta):
+            if fake_detection(img, sigma_, sigmaMax, k, thresh,  delta):
                 print(f, "is fake")
             else:
                 print(f, "is not fake")
