@@ -232,8 +232,8 @@ if __name__ == "__main__":
         check_result = fake_detection(img.copy(), sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device_id)
 
         if check_result:
-            print(link_image, "is fake with score=", 0)
-            results.append([link_image, "fake_detected_by_opencv", 0])
+            print(link_image, "is fake with score=", 1)
+            results.append([link_image, "fake_detected_by_opencv", 1])
         else:
             check_result, conf, image, bbox = dl_face_spoof_detect(img.copy(), model_dir, model_test, image_cropper, img_heights, exact_thresh)
             if check_result:
