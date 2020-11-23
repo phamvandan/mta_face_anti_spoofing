@@ -195,7 +195,7 @@ if __name__ == "__main__":
     # prepare environments
     # ctx, queue, mf, prg = prepare_environment()
     # prepare parameters
-    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device = read_cfg()
     img_heights = list(json.loads(img_heights))
     # load model
     # face_model = mytest.face_boxes_model()
@@ -225,7 +225,7 @@ if __name__ == "__main__":
             # cv2.waitKey(0)
 
         conf = None
-        check_result = fake_detection(img.copy(), sigma_, sigmaMax, k, thresh, delta)
+        check_result = fake_detection(img.copy(), img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device)
 
         if check_result:
             print(link_image, "is fake with score=", 0)
