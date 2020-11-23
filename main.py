@@ -223,6 +223,7 @@ if __name__ == "__main__":
         #     img = image[y:(y+b), x:(x+a)]
             # cv2.imshow("ok", img)
             # cv2.waitKey(0)
+
         conf = None
         check_result = fake_detection(img.copy(), sigma_, sigmaMax, k, thresh, delta)
 
