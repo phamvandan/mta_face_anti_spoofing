@@ -216,24 +216,28 @@ if __name__ == "__main__":
             continue
 
         # bbox can be None if detected fail
-        check_result, conf, image, bbox = dl_face_spoof_detect(img, model_dir, model_test, image_cropper, img_heights,
-                                                               exact_thresh)
+
         # if bbox is not None:
         #     x, y, a, b, _ = bbox
         #     ## face only from original image
         #     img = image[y:(y+b), x:(x+a)]
             # cv2.imshow("ok", img)
             # cv2.waitKey(0)
+        conf = None
+        check_result = fake_detection(img.copy(), sigma_, sigmaMax, k, thresh, delta)
 
         if check_result:
-            print(link_image, "is fake with score=", conf)
-            results.append([link_image, 1, conf])
-        elif fake_detection(img, sigma_, sigmaMax, k, thresh, delta):
-            print(link_image, "is fake")
-            results.append([link_image, 2, conf])
+            print(link_image, "is fake with score=", 0)
+            results.append([link_image, "fake_detected_by_opencv", 0])
         else:
+            check_result, conf, image, bbox = dl_face_spoof_detect(img.copy(), model_dir, model_test, image_cropper, img_heights, exact_thresh)
+            if check_result:
+                print(link_image, "is fake")
+                results.append([link_image, "fake_detected_by_dl", conf])
+        if not check_result:
             print(link_image, "is truth")
             results.append([link_image, 0, conf])
+
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
     pd.DataFrame(results, columns=["path_to_image", "is_fake", "conf"]).to_csv(
