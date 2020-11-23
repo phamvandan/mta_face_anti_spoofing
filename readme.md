@@ -20,3 +20,13 @@ results are stored in ./save_image/..csv
     0 live image
     1, 2 fake detected
 ```
+
+### SWITCH BETWEEN GPU AND CPU
+```
+    change in config file config.cfg
+    [dl_model]
+    device_id=-1 ## for cpu version
+    [dl_model]
+    device_id=-1 ## for gpu version
+    
+```

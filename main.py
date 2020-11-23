@@ -25,8 +25,10 @@ warnings.filterwarnings('ignore')
 
 SAMPLE_IMAGE_PATH = ""
 
-gpu_idx = -1
-net, device, cfg = load_net(gpu_idx)
+# prepare parameters
+folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+
+net, device, cfg = load_net(device_id)
 
 
 def check_image(image, model_dir):
@@ -192,8 +194,7 @@ def draw_prediction(image, image_bbox, prediction):
 
 
 if __name__ == "__main__":
-    # prepare parameters
-    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+
     if device_id >=0:
         # prepare environments
         ctx, queue, mf, prg = prepare_environment()
