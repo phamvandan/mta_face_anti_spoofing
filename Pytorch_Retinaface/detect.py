@@ -62,7 +62,7 @@ def load_model(model, pretrained_path, load_to_cpu):
     model.load_state_dict(pretrained_dict, strict=False)
     return model
 
-def load_net():
+def load_net(device_id=0):
     torch.set_grad_enabled(False)
     cfg = None
     if args.network == "mobile0.25":
@@ -70,6 +70,10 @@ def load_net():
     elif args.network == "resnet50":
         cfg = cfg_re50
     # net and model
+    if device_id >= 0:
+        args.cpu = False
+    else:
+        args.cpu = True
     net = RetinaFace(cfg=cfg, phase='test')
     net = load_model(net, args.trained_model, args.cpu)
     net.eval()
