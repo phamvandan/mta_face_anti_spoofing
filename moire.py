@@ -113,7 +113,7 @@ def check(p, l):
     return res / l
 
 
-def is_moire(img):
+def is_moire_cpu(img):
     thres = np.zeros(256, dtype=np.int32)
     for i in img:
         thres[i]+=1
@@ -189,10 +189,10 @@ def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta
                         rr = slide_r * (i + size_l)
                         c = slide_c * j
                         cc = slide_c * (j + size_r)
-                        if device:
-                            thres = is_moire(img[r:rr,c:cc],ctx, queue, mf, prg)
+                        if device >= 0:
+                            thres = is_moire(img[r:rr, c:cc], ctx, queue, mf, prg)
                         else:
-                            thres = is_moire(img[r:rr, c:cc])
+                            thres = is_moire_cpu(img[r:rr, c:cc])
                         if min_thres > thres:
                             min_thres = thres
                         if (thres < thresh):
@@ -211,7 +211,6 @@ def read_cfg(file_name="config.cfg"):
     folder_out = config.get("moire", "out")
     sigma_ = float(config.get("moire", "sigma_"))
     sigmaMax = float(config.get("moire", "sigma_max"))
-    device = int(config.get("moire", "device"))
 
     k = float(config.get("moire", "k"))
     thresh = float(config.get("moire", "thresh"))
@@ -221,7 +220,7 @@ def read_cfg(file_name="config.cfg"):
     save_dir = config.get("dl_model", "save_dir")
     img_heights = config.get("facebox", "img_heights")
     exact_thresh = float(config.get("facebox", "exact_thresh"))
-    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device
+    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ import time
 from src.anti_spoof_predict import AntiSpoofPredict
 from src.generate_patches import CropImage
 from src.utility import parse_model_name
-from moire import read_cfg, fake_detection  # prepare_environment
+from moire import read_cfg, fake_detection, prepare_environment
 import pandas as pd
 from datetime import datetime
 import json
@@ -192,10 +192,13 @@ def draw_prediction(image, image_bbox, prediction):
 
 
 if __name__ == "__main__":
-    # prepare environments
-    # ctx, queue, mf, prg = prepare_environment()
     # prepare parameters
-    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device = read_cfg()
+    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh = read_cfg()
+    if device_id >=0:
+        # prepare environments
+        ctx, queue, mf, prg = prepare_environment()
+    else:
+        ctx, queue, mf, prg = None, None, None, None
     img_heights = list(json.loads(img_heights))
     # load model
     # face_model = mytest.face_boxes_model()
@@ -225,7 +228,7 @@ if __name__ == "__main__":
             # cv2.waitKey(0)
 
         conf = None
-        check_result = fake_detection(img.copy(), img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device)
+        check_result = fake_detection(img.copy(), sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device_id)
 
         if check_result:
             print(link_image, "is fake with score=", 0)
