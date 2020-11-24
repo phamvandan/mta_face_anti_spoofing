@@ -1,10 +1,10 @@
-import cv2
 import numpy as np
+import cv2
 from skimage.filters import difference_of_gaussians, window
 from scipy.fftpack import fftn, fftshift
 import random, os
 import pyopencl as cl
-
+import tqdm
 
 
 def moire_image(I, debug=1):
@@ -113,15 +113,6 @@ def check(p, l):
     return res / l
 
 
-def is_moire_cpu(img):
-    thres = np.zeros(256, dtype=np.int32)
-    for i in img:
-        thres[i]+=1
-    r, c = img.shape
-    shape_ = r*c
-    thres = check(thres, shape_)
-    return thres
-
 def prepare_environment():
     platform = cl.get_platforms()
     my_gpu_devices = platform[0].get_devices(device_type=cl.device_type.GPU)
@@ -141,9 +132,11 @@ def prepare_environment():
             """).build()
     return ctx, queue, mf, prg
 
-def is_moire(img, ctx, queue, mf, prg):
+
+def is_moire_gpu(img, sigma, k, ctx, queue, mf, prg):
     thres = np.zeros(256, dtype=np.int32)
     thres_g = cl.Buffer(ctx, mf.WRITE_ONLY, thres.nbytes)
+    img = get_filted(img, k, sigma)
     np_ar = np.array(img, dtype=np.int32)
     r, c = np_ar.shape
     shape_ = r * c
@@ -159,10 +152,25 @@ def is_moire(img, ctx, queue, mf, prg):
     res_np = np.empty_like(thres)
     cl.enqueue_copy(queue, res_np, thres_g, wait_for=[we])
     thres = check(res_np, shape_)
-
     return thres
 
-def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device):
+
+def is_moire_cpu(img, sigma, k):
+    img = get_filted(img, k, sigma)
+    thres = np.zeros(256, dtype=np.int32)
+    for i in img:
+        thres[i] += 1
+    r, c = img.shape
+    shape_ = r * c
+    thres = check(thres, shape_)
+    return thres
+    thres = check(thres, shape_)
+    print("g")
+    return thres
+
+
+def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg,
+                   delta, device):
     try:
         img_ = cv2.cvtColor(img_, cv2.COLOR_BGR2GRAY)
     except:
@@ -171,35 +179,36 @@ def fake_detection(img_, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta
     min_thres = 1
     dd_img = False
     rows, cols = img_.shape
-    slide_r = rows // 9
-    slide_c = cols // 9
-    img = get_filted(img_, k, sigma)
+    slide_r = rows // 6
+    slide_c = cols // 6
+
     while sigma < sigmaMax:
-        for size_l in range(4, 6, 1):
+        for size_l in range(2, 4, 1):
             if dd_img:
                 break
-            for size_r in range(4, 6, 1):
+            for size_r in range(2, 4, 1):
                 if dd_img:
                     break
-                for i in range(0, 9 - size_l, 1):
+                for i in range(0, 6 - size_l, 1):
                     if dd_img:
                         break
-                    for j in range(0, 9 - size_r, 1):
+                    for j in range(0, 6 - size_r, 1):
                         r = slide_r * i
                         rr = slide_r * (i + size_l)
                         c = slide_c * j
                         cc = slide_c * (j + size_r)
-                        if device >= 0:
-                            thres = is_moire(img[r:rr, c:cc], ctx, queue, mf, prg)
+                        if device != 0:
+                            thres = is_moire_gpu(img[r:rr, c:cc], sigma, k, ctx,
+                                             queue, mf, prg)
                         else:
-                            thres = is_moire_cpu(img[r:rr, c:cc])
+                            thres = is_moire_cpu(img[r:rr, c:cc], sigma, k)
                         if min_thres > thres:
                             min_thres = thres
                         if (thres < thresh):
                             return True
-
         sigma += delta
     return False
+
 
 import configparser
 
@@ -211,6 +220,7 @@ def read_cfg(file_name="config.cfg"):
     folder_out = config.get("moire", "out")
     sigma_ = float(config.get("moire", "sigma_"))
     sigmaMax = float(config.get("moire", "sigma_max"))
+    device = int(config.get("moire", "device"))
 
     k = float(config.get("moire", "k"))
     thresh = float(config.get("moire", "thresh"))
@@ -220,24 +230,24 @@ def read_cfg(file_name="config.cfg"):
     save_dir = config.get("dl_model", "save_dir")
     img_heights = config.get("facebox", "img_heights")
     exact_thresh = float(config.get("facebox", "exact_thresh"))
-    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh
+    return folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device
 
 
-if __name__ == "__main__":
-    ## prepare environment
-
-    ## read config parameters
-    folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device = read_cfg()
-
-    file_images = os.listdir(folder_int)
-    for f in file_images:
-        link_image = os.path.join(folder_int, f)
-        img = cv2.imread(link_image, 0)
-        if img is None:
-            print("can't read image")
-        else:
-            ## fake_detection
-            if fake_detection(img, sigma_, sigmaMax, k, thresh,  delta, device):
-                print(f, "is fake")
-            else:
-                print(f, "is not fake")
+# if 1:
+#     ## prepare environment
+# 
+#     ## read config parameters
+#     folder_int, folder_out, sigma_, sigmaMax, k, thresh, delta, device_id, model_dir, save_dir, img_heights, exact_thresh, device = read_cfg()
+#     ctx, queue, mf, prg = prepare_environment()
+#     file_images = os.listdir(folder_int)
+#     for f in file_images:
+#         link_image = os.path.join(folder_int, f)
+#         img = cv2.imread(link_image, 0)
+#         if img is None:
+#             print("can't read image")
+#         else:
+#             ## fake_detection
+#             if fake_detection(img, sigma_, sigmaMax, k, thresh, ctx, queue, mf, prg, delta, device):
+#                 print(f, "is fake")
+#             else:
+#                 print(f, "is not fake")
