@@ -235,6 +235,7 @@ if __name__ == "__main__":
 #             print(link_image, "is fake with score=", 1)
 #             results.append([link_image, "fake_detected_by_opencv", 1])
 #         else:
+        img = cv2.detailEnhance(img, sigma_s=10, sigma_r=0.15)
         check_result, conf, image, bbox = dl_face_spoof_detect(img.copy(), model_dir, model_test, image_cropper, img_heights, exact_thresh)
         if check_result:
             print(link_image, "is fake")
